@@ -1,6 +1,4 @@
 import json
-import os
-from groq import Groq
 from pydantic import BaseModel
 from typing import List, Optional
 
@@ -31,7 +29,6 @@ Return ONLY a valid JSON object with exactly this structure (no markdown, no exp
 }}
 
 Categories must be one of: programming_language, framework, tool, cloud, database, methodology, soft_skill, certification, domain_knowledge
-
 Frequency = how many times the skill appears or is implied in the posting.
 Red flags = predatory patterns (unpaid work, impossible requirements, vague compensation, extreme overtime culture signals).
 
@@ -66,20 +63,52 @@ class ExtractedJob(BaseModel):
     salary_range: Optional[str]
 
 
+# Provider config — all use OpenAI-compatible API except Anthropic
+PROVIDERS = {
+    "groq":      {"base_url": "https://api.groq.com/openai/v1",                                        "model": "llama-3.3-70b-versatile"},
+    "gemini":    {"base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",               "model": "gemini-2.0-flash"},
+    "openai":    {"base_url": None,                                                                     "model": "gpt-4o-mini"},
+    "anthropic": {"base_url": None,                                                                     "model": "claude-3-5-haiku-20241022"},
+}
+
+
+def _call(provider: str, api_key: str, prompt: str, max_tokens: int = 2048) -> str:
+    if provider == "anthropic":
+        from anthropic import Anthropic
+        client = Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model=PROVIDERS["anthropic"]["model"],
+            max_tokens=max_tokens,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.content[0].text.strip()
+    else:
+        from openai import OpenAI
+        cfg = PROVIDERS[provider]
+        kwargs = {"api_key": api_key}
+        if cfg["base_url"]:
+            kwargs["base_url"] = cfg["base_url"]
+        client = OpenAI(**kwargs)
+        response = client.chat.completions.create(
+            model=cfg["model"],
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=max_tokens,
+            temperature=0.1,
+        )
+        return response.choices[0].message.content.strip()
+
+
+def _parse_json(raw: str) -> dict:
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+        raw = raw.rsplit("```", 1)[0]
+    return json.loads(raw.strip())
+
+
 class JDExtractor:
-    def __init__(self):
-        self._client = None
-
-    @property
-    def client(self):
-        if self._client is None:
-            key = os.getenv("GROQ_API_KEY")
-            if not key:
-                raise ValueError("GROQ_API_KEY is not set. Add it to your .env file.")
-            self._client = Groq(api_key=key)
-        return self._client
-
-    def extract(self, job_text: str, scraped_meta: dict = None) -> ExtractedJob:
+    def extract(self, job_text: str, provider: str, api_key: str, scraped_meta: dict = None) -> ExtractedJob:
         full_text = job_text
         if scraped_meta:
             parts = []
@@ -93,26 +122,8 @@ class JDExtractor:
                 full_text = "\n".join(parts) + "\n\n" + job_text
 
         safe_text = full_text[:8000].replace("{", "{{").replace("}", "}}")
+        prompt = EXTRACTION_PROMPT.format(job_text=safe_text)
 
-        response = self.client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {
-                    "role": "user",
-                    "content": EXTRACTION_PROMPT.format(job_text=safe_text),
-                }
-            ],
-            max_tokens=2048,
-            temperature=0.1,
-        )
-
-        raw = response.choices[0].message.content.strip()
-
-        if raw.startswith("```"):
-            raw = raw.split("```")[1]
-            if raw.startswith("json"):
-                raw = raw[4:]
-            raw = raw.rsplit("```", 1)[0]
-
-        data = json.loads(raw.strip())
+        raw = _call(provider, api_key, prompt)
+        data = _parse_json(raw)
         return ExtractedJob(**data)

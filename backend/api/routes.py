@@ -3,25 +3,37 @@ from pydantic import BaseModel
 from typing import Optional
 
 from backend.scraper.job_scraper import JobScraper
-from backend.extractor.jd_extractor import JDExtractor
+from backend.extractor.jd_extractor import JDExtractor, PROVIDERS
 from backend.ranker.ats_ranker import ATSRanker
-from backend.resume.parser import extract_text, ResumeParser
+from backend.resume.parser import extract_text, extract_skills
 
 router = APIRouter()
 scraper = JobScraper()
 extractor = JDExtractor()
 ranker = ATSRanker()
-resume_parser = ResumeParser()
+
+VALID_PROVIDERS = set(PROVIDERS.keys())
 
 
 class AnalyzeRequest(BaseModel):
     url: Optional[str] = None
     text: Optional[str] = None
+    provider: str = "groq"
+    api_key: str
 
 
-async def _fetch_and_analyze(url: Optional[str], text: Optional[str]) -> dict:
+def _validate(provider: str, api_key: str):
+    if provider not in VALID_PROVIDERS:
+        raise HTTPException(status_code=400, detail=f"Unknown provider '{provider}'. Choose: {', '.join(VALID_PROVIDERS)}")
+    if not api_key or len(api_key.strip()) < 8:
+        raise HTTPException(status_code=400, detail="API key is missing or too short.")
+
+
+async def _fetch_and_analyze(url: Optional[str], text: Optional[str], provider: str, api_key: str) -> dict:
     if not url and not text:
         raise HTTPException(status_code=400, detail="Provide a URL or job description text.")
+
+    _validate(provider, api_key)
 
     scraped_meta = {}
     job_text = text or ""
@@ -32,6 +44,9 @@ async def _fetch_and_analyze(url: Optional[str], text: Optional[str]) -> dict:
             scraped_meta = scraped
             if scraped.get("description"):
                 job_text = scraped["description"]
+        except ValueError as e:
+            if not text:
+                raise HTTPException(status_code=422, detail=str(e))
         except Exception as e:
             if not text:
                 raise HTTPException(status_code=422, detail=f"Could not scrape URL: {e}")
@@ -40,7 +55,7 @@ async def _fetch_and_analyze(url: Optional[str], text: Optional[str]) -> dict:
         raise HTTPException(status_code=422, detail="Job description too short to analyze.")
 
     try:
-        extracted = extractor.extract(job_text, scraped_meta)
+        extracted = extractor.extract(job_text, provider, api_key.strip(), scraped_meta)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Extraction failed: {e}")
 
@@ -70,9 +85,21 @@ async def health():
     return {"status": "ok"}
 
 
+@router.get("/providers")
+async def providers():
+    return {
+        "providers": [
+            {"id": "groq",      "label": "Groq",      "free": True,  "model": "Llama 3.3 70B",        "url": "https://console.groq.com"},
+            {"id": "gemini",    "label": "Gemini",    "free": True,  "model": "Gemini 2.0 Flash",     "url": "https://aistudio.google.com/apikey"},
+            {"id": "anthropic", "label": "Anthropic", "free": False, "model": "Claude 3.5 Haiku",     "url": "https://console.anthropic.com"},
+            {"id": "openai",    "label": "OpenAI",    "free": False, "model": "GPT-4o Mini",          "url": "https://platform.openai.com/api-keys"},
+        ]
+    }
+
+
 @router.post("/analyze")
 async def analyze_job(request: AnalyzeRequest):
-    return await _fetch_and_analyze(request.url, request.text)
+    return await _fetch_and_analyze(request.url, request.text, request.provider, request.api_key)
 
 
 @router.post("/gap-analysis")
@@ -80,11 +107,14 @@ async def gap_analysis(
     file: UploadFile = File(...),
     url: Optional[str] = Form(None),
     text: Optional[str] = Form(None),
+    provider: str = Form("groq"),
+    api_key: str = Form(...),
 ):
-    # Parse uploaded resume
+    _validate(provider, api_key)
+
     file_bytes = await file.read()
     if len(file_bytes) > 5 * 1024 * 1024:
-        raise HTTPException(status_code=413, detail="Resume file too large. Max 5MB.")
+        raise HTTPException(status_code=413, detail="Resume too large. Max 5MB.")
 
     try:
         resume_text = extract_text(file_bytes, file.filename or "resume.pdf")
@@ -96,29 +126,19 @@ async def gap_analysis(
     if len(resume_text.strip()) < 50:
         raise HTTPException(status_code=422, detail="Could not extract text from resume.")
 
-    # Extract resume skills via Claude
     try:
-        resume_data = resume_parser.extract_skills(resume_text)
+        resume_data = extract_skills(resume_text, provider, api_key.strip())
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Resume parsing failed: {e}")
 
     resume_skills_lower = {s.lower() for s in resume_data.get("skills", [])}
-
-    # Analyze the job posting
-    analysis = await _fetch_and_analyze(url, text)
+    analysis = await _fetch_and_analyze(url, text, provider, api_key)
     ranked_keywords = analysis["ats_result"]["ranked_keywords"]
 
-    matched = []
-    missing = []
-
+    matched, missing = [], []
     for kw in ranked_keywords:
         terms = {kw["canonical_form"].lower()} | {s.lower() for s in kw["synonyms"]}
-        # Match against Claude-extracted resume skills AND raw resume text
-        resume_text_lower = resume_text.lower()
-        found = bool(
-            terms & resume_skills_lower
-            or any(t in resume_text_lower for t in terms)
-        )
+        found = bool(terms & resume_skills_lower or any(t in resume_text.lower() for t in terms))
         entry = {**kw, "in_resume": found}
         (matched if found else missing).append(entry)
 
