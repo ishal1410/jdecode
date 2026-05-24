@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-export type Provider = "groq" | "gemini" | "anthropic" | "openai";
+export type Provider = "groq" | "gemini" | "openrouter" | "anthropic" | "openai";
 
 export const PROVIDERS: {
   id: Provider;
@@ -12,10 +12,11 @@ export const PROVIDERS: {
   url: string;
   color: string;
 }[] = [
-  { id: "groq",      label: "Groq",      free: true,  model: "Llama 3.3 70B",    url: "https://console.groq.com",                  color: "from-orange-500 to-red-500" },
-  { id: "gemini",    label: "Gemini",    free: true,  model: "Gemini 2.0 Flash", url: "https://aistudio.google.com/apikey",         color: "from-blue-500 to-cyan-500" },
-  { id: "anthropic", label: "Anthropic", free: false, model: "Claude 3.5 Haiku", url: "https://console.anthropic.com",             color: "from-amber-500 to-orange-500" },
-  { id: "openai",    label: "OpenAI",    free: false, model: "GPT-4o Mini",      url: "https://platform.openai.com/api-keys",      color: "from-emerald-500 to-teal-500" },
+  { id: "groq",       label: "Groq",       free: true,  model: "Llama 3.3 70B",    url: "https://console.groq.com",             color: "from-orange-500 to-red-500" },
+  { id: "gemini",     label: "Gemini",     free: true,  model: "Gemini 2.0 Flash", url: "https://aistudio.google.com/apikey",   color: "from-blue-500 to-cyan-500" },
+  { id: "openrouter", label: "OpenRouter", free: true,  model: "Llama 4 Scout",    url: "https://openrouter.ai/keys",           color: "from-violet-500 to-purple-500" },
+  { id: "anthropic",  label: "Anthropic",  free: false, model: "Claude 3.5 Haiku", url: "https://console.anthropic.com",        color: "from-amber-500 to-orange-500" },
+  { id: "openai",     label: "OpenAI",     free: false, model: "GPT-4o Mini",      url: "https://platform.openai.com/api-keys", color: "from-emerald-500 to-teal-500" },
 ];
 
 interface Props {
@@ -34,7 +35,7 @@ export default function ApiKeyInput({ provider, apiKey, onProviderChange, onApiK
       {/* Provider grid */}
       <div>
         <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Choose AI Provider</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
           {PROVIDERS.map((p) => (
             <button
               key={p.id}
