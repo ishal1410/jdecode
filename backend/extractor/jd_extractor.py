@@ -68,7 +68,7 @@ class ExtractedJob(BaseModel):
 PROVIDERS = {
     "groq":          {"base_url": "https://api.groq.com/openai/v1",                                     "model": "llama-3.3-70b-versatile"},
     "gemini":        {"base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",            "model": "gemini-2.0-flash"},
-    "cerebras":      {"base_url": "https://api.cerebras.ai/v1",                                        "model": "llama3.3-70b"},
+    "cerebras":      {"base_url": "https://api.cerebras.ai/v1",                                        "model": "llama3.1-8b"},
     "openrouter":    {"base_url": "https://openrouter.ai/api/v1",                                       "model": "deepseek/deepseek-v4-flash:free"},
     "openai":        {"base_url": None,                                                                  "model": "gpt-4o-mini"},
     "anthropic":     {"base_url": None,                                                                  "model": "claude-3-5-haiku-20241022"},
