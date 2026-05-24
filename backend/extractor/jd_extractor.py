@@ -66,11 +66,12 @@ class ExtractedJob(BaseModel):
 
 # Provider config — all use OpenAI-compatible API except Anthropic
 PROVIDERS = {
-    "groq":       {"base_url": "https://api.groq.com/openai/v1",                                        "model": "llama-3.3-70b-versatile"},
-    "gemini":     {"base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",               "model": "gemini-2.0-flash"},
-    "openrouter": {"base_url": "https://openrouter.ai/api/v1",                                          "model": "deepseek/deepseek-v4-flash:free"},
-    "openai":     {"base_url": None,                                                                     "model": "gpt-4o-mini"},
-    "anthropic":  {"base_url": None,                                                                     "model": "claude-3-5-haiku-20241022"},
+    "groq":          {"base_url": "https://api.groq.com/openai/v1",                                     "model": "llama-3.3-70b-versatile"},
+    "gemini":        {"base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",            "model": "gemini-2.0-flash"},
+    "huggingface":   {"base_url": "https://api-inference.huggingface.co/v1/",                           "model": "meta-llama/Llama-3.3-70B-Instruct"},
+    "openrouter":    {"base_url": "https://openrouter.ai/api/v1",                                       "model": "deepseek/deepseek-v4-flash:free"},
+    "openai":        {"base_url": None,                                                                  "model": "gpt-4o-mini"},
+    "anthropic":     {"base_url": None,                                                                  "model": "claude-3-5-haiku-20241022"},
 }
 
 
