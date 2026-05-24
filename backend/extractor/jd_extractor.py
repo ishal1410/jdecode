@@ -1,6 +1,6 @@
 import json
 import os
-import anthropic
+from groq import Groq
 from pydantic import BaseModel
 from typing import List, Optional
 
@@ -68,7 +68,16 @@ class ExtractedJob(BaseModel):
 
 class JDExtractor:
     def __init__(self):
-        self.client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        self._client = None
+
+    @property
+    def client(self):
+        if self._client is None:
+            key = os.getenv("GROQ_API_KEY")
+            if not key:
+                raise ValueError("GROQ_API_KEY is not set. Add it to your .env file.")
+            self._client = Groq(api_key=key)
+        return self._client
 
     def extract(self, job_text: str, scraped_meta: dict = None) -> ExtractedJob:
         full_text = job_text
@@ -83,20 +92,22 @@ class JDExtractor:
             if parts:
                 full_text = "\n".join(parts) + "\n\n" + job_text
 
-        # Escape braces in user content so .format() doesn't crash on JDs like "experience with {Python}"
         safe_text = full_text[:8000].replace("{", "{{").replace("}", "}}")
-        message = self.client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=2048,
+
+        response = self.client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
             messages=[
                 {
                     "role": "user",
                     "content": EXTRACTION_PROMPT.format(job_text=safe_text),
                 }
             ],
+            max_tokens=2048,
+            temperature=0.1,
         )
 
-        raw = message.content[0].text.strip()
+        raw = response.choices[0].message.content.strip()
+
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):

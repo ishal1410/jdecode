@@ -1,9 +1,8 @@
 import io
 import json
 import os
-from typing import List
 
-import anthropic
+from groq import Groq
 import fitz  # PyMuPDF
 from docx import Document
 
@@ -39,7 +38,7 @@ Return ONLY a valid JSON object (no markdown):
   "job_titles": ["Software Engineer", "ML Intern"]
 }}
 
-Include every specific technology, tool, language, framework, methodology, and certification mentioned — even if implied by projects or job descriptions.
+Include every specific technology, tool, language, framework, methodology, and certification mentioned.
 
 Resume:
 {resume_text}"""
@@ -47,22 +46,33 @@ Resume:
 
 class ResumeParser:
     def __init__(self):
-        self.client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        self._client = None
+
+    @property
+    def client(self):
+        if self._client is None:
+            key = os.getenv("GROQ_API_KEY")
+            if not key:
+                raise ValueError("GROQ_API_KEY is not set. Add it to your .env file.")
+            self._client = Groq(api_key=key)
+        return self._client
 
     def extract_skills(self, resume_text: str) -> dict:
-        message = self.client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=1024,
+        safe_text = resume_text[:6000].replace("{", "{{").replace("}", "}}")
+
+        response = self.client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
             messages=[
                 {
                     "role": "user",
-                    "content": RESUME_EXTRACT_PROMPT.format(
-                        resume_text=resume_text[:6000].replace("{", "{{").replace("}", "}}")
-                    ),
+                    "content": RESUME_EXTRACT_PROMPT.format(resume_text=safe_text),
                 }
             ],
+            max_tokens=1024,
+            temperature=0.1,
         )
-        raw = message.content[0].text.strip()
+
+        raw = response.choices[0].message.content.strip()
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):
