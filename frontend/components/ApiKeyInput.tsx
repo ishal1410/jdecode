@@ -14,7 +14,7 @@ export const PROVIDERS: {
 }[] = [
   { id: "groq",       label: "Groq",       free: true,  model: "Llama 3.3 70B",    url: "https://console.groq.com",             color: "from-orange-500 to-red-500" },
   { id: "gemini",     label: "Gemini",     free: true,  model: "Gemini 2.0 Flash", url: "https://aistudio.google.com/apikey",   color: "from-blue-500 to-cyan-500" },
-  { id: "openrouter", label: "OpenRouter", free: true,  model: "Llama 3.3 70B",    url: "https://openrouter.ai/keys",           color: "from-violet-500 to-purple-500" },
+  { id: "openrouter", label: "OpenRouter", free: true,  model: "DeepSeek V4",      url: "https://openrouter.ai/keys",           color: "from-violet-500 to-purple-500" },
   { id: "anthropic",  label: "Anthropic",  free: false, model: "Claude 3.5 Haiku", url: "https://console.anthropic.com",        color: "from-amber-500 to-orange-500" },
   { id: "openai",     label: "OpenAI",     free: false, model: "GPT-4o Mini",      url: "https://platform.openai.com/api-keys", color: "from-emerald-500 to-teal-500" },
 ];
