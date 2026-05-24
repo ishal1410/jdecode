@@ -1,125 +1,95 @@
+import httpx
+from bs4 import BeautifulSoup
 from urllib.parse import urlparse
-from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeout
 
-
-class JobScraper:
-    USER_AGENT = (
+HEADERS = {
+    "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
         "AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/124.0.0.0 Safari/537.36"
-    )
+    ),
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+}
 
+# Sites that need JavaScript rendering — tell the user to paste text instead
+JS_ONLY_SITES = {"linkedin.com", "indeed.com"}
+
+
+class JobScraper:
     async def scrape(self, url: str) -> dict:
-        domain = urlparse(url).netloc.lower()
+        domain = urlparse(url).netloc.lower().replace("www.", "")
 
-        async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            context = await browser.new_context(
-                user_agent=self.USER_AGENT,
-                extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
+        if any(js in domain for js in JS_ONLY_SITES):
+            raise ValueError(
+                f"{domain} requires a login or JavaScript to scrape. "
+                "Please copy and paste the job description text directly."
             )
-            page = await context.new_page()
-            try:
-                await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-                await page.wait_for_timeout(2000)
 
-                if "linkedin.com" in domain:
-                    result = await self._scrape_linkedin(page)
-                elif "greenhouse.io" in domain or "boards.greenhouse" in domain:
-                    result = await self._scrape_greenhouse(page)
-                elif "lever.co" in domain:
-                    result = await self._scrape_lever(page)
-                elif "indeed.com" in domain:
-                    result = await self._scrape_indeed(page)
-                elif "workday.com" in domain or "myworkdayjobs.com" in domain:
-                    result = await self._scrape_workday(page)
-                else:
-                    result = await self._scrape_generic(page)
-            except PlaywrightTimeout:
-                result = await self._scrape_generic(page)
-            finally:
-                await browser.close()
-
-        return result
-
-    async def _scrape_linkedin(self, page) -> dict:
         try:
-            btn = page.locator("button.show-more-less-html__button")
-            if await btn.count() > 0:
-                await btn.first.click()
-                await page.wait_for_timeout(500)
-        except Exception:
-            pass
+            async with httpx.AsyncClient(
+                headers=HEADERS,
+                follow_redirects=True,
+                timeout=15,
+            ) as client:
+                response = await client.get(url)
+                response.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            raise ValueError(f"Could not fetch page (HTTP {e.response.status_code}). Try pasting the text directly.")
+        except httpx.RequestError:
+            raise ValueError("Could not reach that URL. Try pasting the text directly.")
 
-        title = await self._text(page, [
-            "h1.top-card-layout__title",
-            "h1.job-details-jobs-unified-top-card__job-title",
-            "h1",
-        ])
-        company = await self._text(page, [
-            "a.topcard__org-name-link",
-            ".job-details-jobs-unified-top-card__company-name",
-        ])
-        location = await self._text(page, [
-            ".topcard__flavor--bullet",
-            ".job-details-jobs-unified-top-card__bullet",
-        ])
-        description = await self._text(page, [
-            ".description__text",
-            ".job-details-jobs-unified-top-card__job-description",
-            ".jobs-description__content",
-        ])
-        return {"title": title, "company": company, "location": location, "description": description, "source": "linkedin"}
+        return self._parse(response.text, domain)
 
-    async def _scrape_greenhouse(self, page) -> dict:
-        title = await self._text(page, ["h1.app-title", "h1"])
-        company = await self._text(page, [".company-name", ".job-post__company"])
-        location = await self._text(page, [".location", ".job__location"])
-        description = await self._text(page, ["#content", ".job-post__content", "article"])
-        return {"title": title, "company": company, "location": location, "description": description, "source": "greenhouse"}
+    def _parse(self, html: str, domain: str) -> dict:
+        soup = BeautifulSoup(html, "lxml")
 
-    async def _scrape_lever(self, page) -> dict:
-        title = await self._text(page, [".posting-headline h2", "h2"])
-        location = await self._text(page, [".posting-categories .location", ".location"])
-        description = await self._text(page, [".content", ".posting-page"])
-        return {"title": title, "company": "", "location": location, "description": description, "source": "lever"}
+        # Remove noise
+        for tag in soup(["script", "style", "nav", "footer", "header", "noscript"]):
+            tag.decompose()
 
-    async def _scrape_indeed(self, page) -> dict:
-        title = await self._text(page, ["h1.jobsearch-JobInfoHeader-title", "h1"])
-        company = await self._text(page, ["[data-company-name]", ".jobsearch-InlineCompanyRating-companyHeader"])
-        location = await self._text(page, [".jobsearch-JobInfoHeader-subtitle"])
-        description = await self._text(page, ["#jobDescriptionText", ".jobsearch-jobDescriptionText"])
-        return {"title": title, "company": company, "location": location, "description": description, "source": "indeed"}
-
-    async def _scrape_workday(self, page) -> dict:
-        await page.wait_for_timeout(3000)
-        title = await self._text(page, ["h2[data-automation-id='jobPostingHeader']", "h2"])
-        description = await self._text(page, ["[data-automation-id='jobPostingDescription']", ".wd-text"])
-        return {"title": title, "company": "", "location": "", "description": description, "source": "workday"}
-
-    async def _scrape_generic(self, page) -> dict:
-        title = await self._text(page, ["h1", "h2"])
+        title = ""
+        company = ""
+        location = ""
         description = ""
-        for selector in ["main", "article", "#content", ".content", "body"]:
-            try:
-                el = page.locator(selector).first
-                if await el.count() > 0:
-                    text = await el.inner_text()
-                    if len(text) > 200:
-                        description = text
-                        break
-            except Exception:
-                continue
-        return {"title": title, "company": "", "location": "", "description": description, "source": "generic"}
 
-    async def _text(self, page, selectors: list) -> str:
+        if "greenhouse.io" in domain or "boards.greenhouse" in domain:
+            title = self._text(soup, ["h1.app-title", "h1"])
+            company = self._text(soup, [".company-name"])
+            location = self._text(soup, [".location"])
+            description = self._text(soup, ["#content", ".job-post__content"])
+
+        elif "lever.co" in domain:
+            title = self._text(soup, [".posting-headline h2", "h2"])
+            location = self._text(soup, [".posting-categories .location"])
+            description = self._text(soup, [".content"])
+
+        elif "workday.com" in domain or "myworkdayjobs.com" in domain:
+            title = self._text(soup, ["h2", "h1"])
+            description = self._text(soup, ["[data-automation-id='jobPostingDescription']", "main"])
+
+        else:
+            # Generic: grab title + biggest text block
+            title = self._text(soup, ["h1", "h2"])
+            for selector in ["main", "article", "#content", ".content", ".job", "body"]:
+                block = soup.select_one(selector)
+                if block and len(block.get_text()) > 300:
+                    description = block.get_text(separator="\n", strip=True)
+                    break
+
+        return {
+            "title": title,
+            "company": company,
+            "location": location,
+            "description": description or soup.get_text(separator="\n", strip=True)[:6000],
+            "source": domain,
+        }
+
+    def _text(self, soup: BeautifulSoup, selectors: list) -> str:
         for sel in selectors:
-            try:
-                el = page.locator(sel).first
-                if await el.count() > 0:
-                    t = await el.inner_text()
-                    if t and t.strip():
-                        return t.strip()
-            except Exception:
-                continue
+            el = soup.select_one(sel)
+            if el:
+                t = el.get_text(separator=" ", strip=True)
+                if t:
+                    return t
         return ""
