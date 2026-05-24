@@ -91,7 +91,7 @@ async def providers():
         "providers": [
             {"id": "groq",        "label": "Groq",         "free": True,  "model": "Llama 3.3 70B",    "url": "https://console.groq.com"},
             {"id": "gemini",      "label": "Gemini",       "free": True,  "model": "Gemini 2.0 Flash", "url": "https://aistudio.google.com/apikey"},
-            {"id": "huggingface", "label": "HuggingFace",  "free": True,  "model": "Llama 3.3 70B",    "url": "https://huggingface.co/settings/tokens"},
+            {"id": "huggingface", "label": "HuggingFace",  "free": True,  "model": "Llama 3.3 70B",    "url": "https://huggingface.co/settings/tokens/new?tokenType=fineGrained"},
             {"id": "openrouter",  "label": "OpenRouter",   "free": True,  "model": "DeepSeek V4",      "url": "https://openrouter.ai/keys"},
             {"id": "anthropic",   "label": "Anthropic",    "free": False, "model": "Claude 3.5 Haiku", "url": "https://console.anthropic.com"},
             {"id": "openai",      "label": "OpenAI",       "free": False, "model": "GPT-4o Mini",      "url": "https://platform.openai.com/api-keys"},
