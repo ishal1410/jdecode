@@ -10,12 +10,8 @@ app = FastAPI(title="JDecode API", version="0.1.0", description="ATS keyword dec
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "chrome-extension://*",
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
