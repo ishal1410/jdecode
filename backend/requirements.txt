@@ -1,0 +1,9 @@
+# Install with: pip install --only-binary :all: -r requirements.txt
+fastapi
+uvicorn[standard]
+playwright
+anthropic
+pydantic
+python-multipart
+python-dotenv
+httpx
