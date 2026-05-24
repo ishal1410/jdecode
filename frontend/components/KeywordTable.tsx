@@ -15,29 +15,22 @@ type Keyword = {
 
 type AnalysisResult = {
   job_info: {
-    title: string;
-    company: string;
-    location: string;
-    employment_type: string;
-    experience_years: number;
-    education: string | null;
-    remote_friendly: boolean;
-    salary_range: string | null;
+    title: string; company: string; location: string;
+    employment_type: string; experience_years: number;
+    education: string | null; remote_friendly: boolean; salary_range: string | null;
   };
   ats_result: {
     ranked_keywords: Keyword[];
-    critical_count: number;
-    important_count: number;
-    total_keywords: number;
+    critical_count: number; important_count: number; total_keywords: number;
   };
   red_flags: string[];
 };
 
-const BADGE: Record<string, string> = {
-  Critical:       "bg-red-100 text-red-700 border border-red-200",
-  Important:      "bg-orange-100 text-orange-700 border border-orange-200",
-  Preferred:      "bg-blue-100 text-blue-700 border border-blue-200",
-  "Nice to have": "bg-gray-100 text-gray-500 border border-gray-200",
+const IMPORTANCE: Record<string, { bg: string; text: string; dot: string }> = {
+  "Critical":       { bg: "bg-red-50",    text: "text-red-700",    dot: "bg-red-500" },
+  "Important":      { bg: "bg-orange-50", text: "text-orange-700", dot: "bg-orange-500" },
+  "Preferred":      { bg: "bg-blue-50",   text: "text-blue-700",   dot: "bg-blue-500" },
+  "Nice to have":   { bg: "bg-slate-50",  text: "text-slate-500",  dot: "bg-slate-300" },
 };
 
 export default function KeywordTable() {
@@ -51,157 +44,143 @@ export default function KeywordTable() {
 
   async function analyze() {
     if (!input.trim()) { setError("Paste a job URL or description."); return; }
-    if (!apiKey.trim()) { setError("Add your API key first."); return; }
-
-    setLoading(true);
-    setError("");
-    setResult(null);
-
+    if (!apiKey.trim()) { setError("Add your API key above."); return; }
+    setLoading(true); setError(""); setResult(null);
     try {
       const res = await fetch(`${API}/api/v1/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          [inputType === "url" ? "url" : "text"]: input.trim(),
-          provider,
-          api_key: apiKey.trim(),
-        }),
+        body: JSON.stringify({ [inputType]: input.trim(), provider, api_key: apiKey.trim() }),
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || "Analysis failed");
-      }
+      if (!res.ok) { const e = await res.json(); throw new Error(e.detail || "Failed"); }
       setResult(await res.json());
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Something went wrong");
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }
 
-  return (
-    <div className="space-y-5">
-      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm space-y-4">
+  const grouped = result ? {
+    "Critical":     result.ats_result.ranked_keywords.filter(k => k.importance_label === "Critical"),
+    "Important":    result.ats_result.ranked_keywords.filter(k => k.importance_label === "Important"),
+    "Preferred":    result.ats_result.ranked_keywords.filter(k => k.importance_label === "Preferred"),
+    "Nice to have": result.ats_result.ranked_keywords.filter(k => k.importance_label === "Nice to have"),
+  } : null;
 
-        {/* Provider + key */}
-        <ApiKeyInput
-          provider={provider}
-          apiKey={apiKey}
-          onProviderChange={setProvider}
-          onApiKeyChange={setApiKey}
-        />
+  return (
+    <div className="space-y-4">
+      {/* Input card */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+        <ApiKeyInput provider={provider} apiKey={apiKey} onProviderChange={setProvider} onApiKeyChange={setApiKey} />
 
         {/* Job input */}
-        <div>
-          <div className="flex gap-2 mb-3">
+        <div className="space-y-3">
+          <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit">
             {(["url", "text"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setInputType(t)}
-                className={`text-sm px-3 py-1 rounded-md font-medium ${
-                  inputType === t ? "bg-gray-900 text-white" : "text-gray-500 hover:text-gray-900"
-                }`}
-              >
+              <button key={t} onClick={() => setInputType(t)}
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${
+                  inputType === t ? "bg-white shadow-sm text-slate-900" : "text-slate-500 hover:text-slate-700"
+                }`}>
                 {t === "url" ? "Job URL" : "Paste Text"}
               </button>
             ))}
           </div>
 
           {inputType === "url" ? (
-            <input
-              type="url"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="https://greenhouse.io/jobs/... or any job URL"
-              className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-            />
+            <input type="url" value={input} onChange={(e) => setInput(e.target.value)}
+              placeholder="https://greenhouse.io/jobs/... or any job posting URL"
+              className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 bg-slate-50 placeholder:text-slate-300" />
           ) : (
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Paste the full job description here..."
-              rows={7}
-              className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
-            />
+            <textarea value={input} onChange={(e) => setInput(e.target.value)}
+              placeholder="Paste the full job description here..." rows={6}
+              className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 bg-slate-50 resize-none placeholder:text-slate-300" />
           )}
         </div>
 
-        <button
-          onClick={analyze}
-          disabled={loading || !input.trim() || !apiKey.trim()}
-          className="w-full bg-gray-900 text-white py-3 rounded-lg font-medium text-sm hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          {loading ? "Analyzing..." : "Decode ATS Keywords"}
+        <button onClick={analyze} disabled={loading || !input.trim() || !apiKey.trim()}
+          className="w-full bg-slate-900 text-white py-3 rounded-xl font-semibold text-sm hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm">
+          {loading
+            ? <span className="flex items-center justify-center gap-2"><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Analyzing...</span>
+            : "🔍 Decode ATS Keywords"}
         </button>
 
-        {error && <p className="text-sm text-red-600 bg-red-50 px-4 py-2 rounded-lg">{error}</p>}
+        {error && (
+          <div className="flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">
+            <span>⚠</span><span>{error}</span>
+          </div>
+        )}
       </div>
 
       {/* Results */}
       {result && (
-        <div className="space-y-4">
-          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-            <h2 className="font-semibold text-gray-900 text-lg">{result.job_info.title || "Job Posting"}</h2>
-            <div className="flex flex-wrap gap-3 mt-1 text-sm text-gray-500">
-              {result.job_info.company && <span>{result.job_info.company}</span>}
-              {result.job_info.location && <span>· {result.job_info.location}</span>}
-              {result.job_info.experience_years > 0 && <span>· {result.job_info.experience_years}+ yrs</span>}
-              {result.job_info.salary_range && <span className="text-green-600 font-medium">· {result.job_info.salary_range}</span>}
+        <div className="space-y-4 fade-up">
+          {/* Job info */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">{result.job_info.title || "Job Posting"}</h2>
+                <p className="text-sm text-slate-400 mt-0.5">
+                  {[result.job_info.company, result.job_info.location, result.job_info.employment_type].filter(Boolean).join(" · ")}
+                  {result.job_info.experience_years > 0 && ` · ${result.job_info.experience_years}+ yrs`}
+                </p>
+              </div>
+              {result.job_info.salary_range && (
+                <span className="text-sm font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full whitespace-nowrap">
+                  {result.job_info.salary_range}
+                </span>
+              )}
             </div>
-            <div className="flex gap-5 mt-4">
+
+            <div className="flex gap-6 mt-4 pt-4 border-t border-slate-100">
               {[
                 { label: "Critical",  value: result.ats_result.critical_count,  color: "text-red-600" },
                 { label: "Important", value: result.ats_result.important_count, color: "text-orange-500" },
-                { label: "Total",     value: result.ats_result.total_keywords,  color: "text-gray-700" },
+                { label: "Total",     value: result.ats_result.total_keywords,  color: "text-slate-700" },
               ].map((s) => (
-                <div key={s.label}>
-                  <span className={`text-2xl font-bold ${s.color}`}>{s.value}</span>
-                  <p className="text-xs text-gray-400">{s.label}</p>
+                <div key={s.label} className="text-center">
+                  <p className={`text-2xl font-extrabold ${s.color}`}>{s.value}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">{s.label}</p>
                 </div>
               ))}
             </div>
           </div>
 
+          {/* Red flags */}
           {result.red_flags.length > 0 && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-              <p className="text-sm font-semibold text-yellow-800 mb-1">⚠ Red flags</p>
-              {result.red_flags.map((f, i) => <p key={i} className="text-sm text-yellow-700">· {f}</p>)}
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+              <p className="text-sm font-bold text-amber-800 mb-2">⚠ Red flags detected</p>
+              <ul className="space-y-1">
+                {result.red_flags.map((f, i) => <li key={i} className="text-sm text-amber-700 flex gap-2"><span>·</span><span>{f}</span></li>)}
+              </ul>
             </div>
           )}
 
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100">
-              <h3 className="font-semibold text-gray-900">ATS Keywords — ranked by importance</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Add these to your resume in order. Critical = must have to pass screening.</p>
-            </div>
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-                <tr>
-                  <th className="text-left px-5 py-3">Keyword</th>
-                  <th className="text-left px-5 py-3">Importance</th>
-                  <th className="text-left px-5 py-3 hidden sm:table-cell">Category</th>
-                  <th className="text-left px-5 py-3 hidden md:table-cell">Also known as</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {result.ats_result.ranked_keywords.map((kw, i) => (
-                  <tr key={i} className="hover:bg-gray-50">
-                    <td className="px-5 py-3 font-medium text-gray-900">
+          {/* Keywords grouped by importance */}
+          {grouped && Object.entries(grouped).map(([label, keywords]) =>
+            keywords.length === 0 ? null : (
+              <div key={label} className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className={`flex items-center gap-2 px-5 py-3 border-b border-slate-100 ${IMPORTANCE[label].bg}`}>
+                  <span className={`w-2 h-2 rounded-full ${IMPORTANCE[label].dot}`} />
+                  <h3 className={`text-sm font-bold ${IMPORTANCE[label].text}`}>{label}</h3>
+                  <span className={`ml-auto text-xs font-semibold px-2 py-0.5 rounded-full bg-white/60 ${IMPORTANCE[label].text}`}>
+                    {keywords.length}
+                  </span>
+                </div>
+                <div className="p-4 flex flex-wrap gap-2">
+                  {keywords.map((kw, i) => (
+                    <div key={i} className={`group relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-medium cursor-default ${IMPORTANCE[label].bg} ${IMPORTANCE[label].text} border-current/20`}>
                       {kw.canonical_form}
-                      {kw.frequency > 1 && <span className="ml-1.5 text-xs text-gray-400">×{kw.frequency}</span>}
-                    </td>
-                    <td className="px-5 py-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${BADGE[kw.importance_label]}`}>
-                        {kw.importance_label}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 text-gray-500 hidden sm:table-cell capitalize">{kw.category.replace(/_/g, " ")}</td>
-                    <td className="px-5 py-3 text-gray-400 text-xs hidden md:table-cell">{kw.synonyms.slice(0, 3).join(", ")}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      {kw.frequency > 1 && <span className="text-xs opacity-60">×{kw.frequency}</span>}
+                      {kw.synonyms.length > 0 && (
+                        <div className="absolute bottom-full left-0 mb-1.5 hidden group-hover:block bg-slate-900 text-white text-xs rounded-lg px-3 py-2 whitespace-nowrap z-10 shadow-xl">
+                          Also: {kw.synonyms.slice(0, 4).join(", ")}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          )}
         </div>
       )}
     </div>

@@ -23,10 +23,10 @@ type GapResult = {
 };
 
 const BADGE: Record<string, string> = {
-  Critical:       "bg-red-100 text-red-700 border border-red-200",
-  Important:      "bg-orange-100 text-orange-700 border border-orange-200",
-  Preferred:      "bg-blue-100 text-blue-700 border border-blue-200",
-  "Nice to have": "bg-gray-100 text-gray-500 border border-gray-200",
+  "Critical":     "bg-red-100 text-red-700",
+  "Important":    "bg-orange-100 text-orange-700",
+  "Preferred":    "bg-blue-100 text-blue-700",
+  "Nice to have": "bg-slate-100 text-slate-500",
 };
 
 export default function GapAnalysis() {
@@ -41,14 +41,11 @@ export default function GapAnalysis() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function analyze() {
-    if (!file)           { setError("Upload your resume first."); return; }
+    if (!file)            { setError("Upload your resume first."); return; }
     if (!jobInput.trim()) { setError("Provide a job URL or paste the description."); return; }
-    if (!apiKey.trim())  { setError("Add your API key first."); return; }
+    if (!apiKey.trim())   { setError("Add your API key above."); return; }
 
-    setLoading(true);
-    setError("");
-    setResult(null);
-
+    setLoading(true); setError(""); setResult(null);
     const form = new FormData();
     form.append("file", file);
     form.append("provider", provider);
@@ -62,14 +59,12 @@ export default function GapAnalysis() {
       setResult(await res.json());
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Something went wrong");
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   }
 
-  const scoreColor = !result ? "" :
-    result.match_score >= 75 ? "text-green-600" :
-    result.match_score >= 50 ? "text-orange-500" : "text-red-600";
+  const score = result?.match_score ?? 0;
+  const scoreColor = score >= 75 ? "text-emerald-600" : score >= 50 ? "text-orange-500" : "text-red-600";
+  const barColor   = score >= 75 ? "bg-emerald-500"  : score >= 50 ? "bg-orange-400"   : "bg-red-500";
 
   const allKeywords = result
     ? [...result.matched_keywords, ...result.missing_keywords].sort((a, b) => {
@@ -79,23 +74,17 @@ export default function GapAnalysis() {
     : [];
 
   return (
-    <div className="space-y-5">
-      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm space-y-4">
-
-        <ApiKeyInput
-          provider={provider}
-          apiKey={apiKey}
-          onProviderChange={setProvider}
-          onApiKeyChange={setApiKey}
-        />
+    <div className="space-y-4">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4">
+        <ApiKeyInput provider={provider} apiKey={apiKey} onProviderChange={setProvider} onApiKeyChange={setApiKey} />
 
         {/* Job input */}
-        <div>
-          <p className="text-sm font-medium text-gray-700 mb-2">Job Posting</p>
-          <div className="flex gap-2 mb-3">
+        <div className="space-y-3">
+          <p className="text-sm font-semibold text-slate-700">Job Posting</p>
+          <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit">
             {(["url", "text"] as const).map((t) => (
               <button key={t} onClick={() => setInputType(t)}
-                className={`text-sm px-3 py-1 rounded-md font-medium ${inputType === t ? "bg-gray-900 text-white" : "text-gray-500 hover:text-gray-900"}`}>
+                className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all ${inputType === t ? "bg-white shadow-sm text-slate-900" : "text-slate-500 hover:text-slate-700"}`}>
                 {t === "url" ? "URL" : "Paste Text"}
               </button>
             ))}
@@ -103,107 +92,121 @@ export default function GapAnalysis() {
           {inputType === "url" ? (
             <input type="url" value={jobInput} onChange={(e) => setJobInput(e.target.value)}
               placeholder="https://greenhouse.io/jobs/..."
-              className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" />
+              className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 bg-slate-50 placeholder:text-slate-300" />
           ) : (
             <textarea value={jobInput} onChange={(e) => setJobInput(e.target.value)}
               placeholder="Paste the full job description..." rows={5}
-              className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none" />
+              className="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-slate-900 bg-slate-50 resize-none placeholder:text-slate-300" />
           )}
         </div>
 
         {/* Resume upload */}
         <div>
-          <p className="text-sm font-medium text-gray-700 mb-2">Your Resume</p>
+          <p className="text-sm font-semibold text-slate-700 mb-2">Your Resume</p>
           <div onClick={() => fileRef.current?.click()}
-            className="border-2 border-dashed border-gray-300 rounded-lg p-5 text-center cursor-pointer hover:border-gray-400 transition-colors">
-            {file
-              ? <p className="text-sm text-gray-700 font-medium">{file.name}</p>
-              : <>
-                  <p className="text-sm text-gray-500">Click to upload PDF or DOCX</p>
-                  <p className="text-xs text-gray-400 mt-1">Max 5MB · never stored on our servers</p>
-                </>}
+            className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all ${
+              file ? "border-emerald-300 bg-emerald-50" : "border-slate-200 bg-slate-50 hover:border-slate-300"
+            }`}>
+            {file ? (
+              <div className="flex items-center justify-center gap-2 text-emerald-700">
+                <span className="text-lg">✓</span>
+                <span className="text-sm font-semibold">{file.name}</span>
+              </div>
+            ) : (
+              <>
+                <p className="text-2xl mb-1">📄</p>
+                <p className="text-sm font-medium text-slate-600">Click to upload PDF or DOCX</p>
+                <p className="text-xs text-slate-400 mt-1">Max 5MB · never stored on our servers</p>
+              </>
+            )}
           </div>
           <input ref={fileRef} type="file" accept=".pdf,.docx" className="hidden"
             onChange={(e) => setFile(e.target.files?.[0] || null)} />
         </div>
 
         <button onClick={analyze} disabled={loading || !file || !apiKey.trim()}
-          className="w-full bg-gray-900 text-white py-3 rounded-lg font-medium text-sm hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-          {loading ? "Analyzing..." : "Check My Resume"}
+          className="w-full bg-slate-900 text-white py-3 rounded-xl font-semibold text-sm hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm">
+          {loading
+            ? <span className="flex items-center justify-center gap-2"><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Analyzing...</span>
+            : "📊 Check My Resume"}
         </button>
 
-        {error && <p className="text-sm text-red-600 bg-red-50 px-4 py-2 rounded-lg">{error}</p>}
+        {error && (
+          <div className="flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl">
+            <span>⚠</span><span>{error}</span>
+          </div>
+        )}
       </div>
 
       {/* Results */}
       {result && (
-        <div className="space-y-4">
-          {/* Score */}
-          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-            <div className="flex items-center justify-between">
+        <div className="space-y-4 fade-up">
+          {/* Score card */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="font-semibold text-gray-900">{result.job_info.title || "Job Posting"}
-                  {result.job_info.company && <span className="text-gray-400 font-normal text-sm"> · {result.job_info.company}</span>}
+                <h2 className="font-bold text-slate-900">{result.job_info.title || "Job Posting"}
+                  {result.job_info.company && <span className="text-slate-400 font-normal text-sm"> · {result.job_info.company}</span>}
                 </h2>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-sm text-slate-400 mt-0.5">
                   {result.summary.matched} of {result.summary.total} keywords found in your resume
                   {result.summary.critical_missing > 0 &&
-                    <span className="text-red-600 font-medium"> — {result.summary.critical_missing} critical missing</span>}
+                    <span className="text-red-600 font-semibold"> · {result.summary.critical_missing} critical missing</span>}
                 </p>
               </div>
-              <div className="text-right">
-                <span className={`text-4xl font-bold ${scoreColor}`}>{result.match_score}%</span>
-                <p className="text-xs text-gray-400">match</p>
+              <div className="text-right ml-4">
+                <span className={`text-4xl font-extrabold ${scoreColor}`}>{score}%</span>
+                <p className="text-xs text-slate-400">match</p>
               </div>
             </div>
-            <div className="mt-3 h-2 bg-gray-100 rounded-full overflow-hidden">
-              <div className={`h-full rounded-full ${result.match_score >= 75 ? "bg-green-500" : result.match_score >= 50 ? "bg-orange-400" : "bg-red-500"}`}
-                style={{ width: `${result.match_score}%` }} />
+            <div className="h-3 bg-slate-100 rounded-full overflow-hidden">
+              <div className={`h-full rounded-full transition-all duration-700 ${barColor}`} style={{ width: `${score}%` }} />
             </div>
           </div>
 
           {/* Critical missing */}
           {result.critical_missing.length > 0 && (
-            <div className="bg-white rounded-xl border border-red-200 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-2xl border border-red-200 shadow-sm overflow-hidden">
               <div className="px-5 py-3 bg-red-50 border-b border-red-100">
-                <h3 className="font-semibold text-red-800">Critical keywords missing from your resume</h3>
-                <p className="text-xs text-red-500 mt-0.5">Add these first — highest chance of ATS rejection.</p>
+                <h3 className="font-bold text-red-800 text-sm">Critical keywords missing</h3>
+                <p className="text-xs text-red-400 mt-0.5">Add these first — highest chance of ATS rejection</p>
               </div>
-              <ul className="divide-y divide-gray-100">
+              <div className="p-4 flex flex-wrap gap-2">
                 {result.critical_missing.map((kw, i) => (
-                  <li key={i} className="px-5 py-3 flex items-center justify-between">
-                    <span className="font-medium text-gray-900">{kw.canonical_form}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${BADGE[kw.importance_label]}`}>{kw.importance_label}</span>
-                  </li>
+                  <span key={i} className="px-3 py-1.5 bg-red-50 text-red-700 text-sm font-semibold rounded-lg border border-red-200">
+                    {kw.canonical_form}
+                  </span>
                 ))}
-              </ul>
+              </div>
             </div>
           )}
 
           {/* Full table */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100">
-              <h3 className="font-semibold text-gray-900">Full keyword breakdown</h3>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100">
+              <h3 className="font-bold text-slate-900">Full keyword breakdown</h3>
             </div>
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+              <thead className="bg-slate-50 text-xs text-slate-400 uppercase tracking-wider">
                 <tr>
                   <th className="text-left px-5 py-3">Keyword</th>
                   <th className="text-left px-5 py-3">Importance</th>
-                  <th className="text-left px-5 py-3">In Resume</th>
+                  <th className="text-left px-5 py-3">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-slate-100">
                 {allKeywords.map((kw, i) => (
-                  <tr key={i} className={kw.in_resume ? "bg-green-50/50" : ""}>
-                    <td className="px-5 py-3 font-medium text-gray-900">{kw.canonical_form}</td>
+                  <tr key={i} className={kw.in_resume ? "bg-emerald-50/40" : ""}>
+                    <td className="px-5 py-3 font-semibold text-slate-800">{kw.canonical_form}</td>
                     <td className="px-5 py-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${BADGE[kw.importance_label]}`}>{kw.importance_label}</span>
+                      <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${BADGE[kw.importance_label]}`}>
+                        {kw.importance_label}
+                      </span>
                     </td>
-                    <td className="px-5 py-3 text-sm">
+                    <td className="px-5 py-3 font-medium text-sm">
                       {kw.in_resume
-                        ? <span className="text-green-600 font-medium">✓ Found</span>
-                        : <span className="text-red-500">✗ Missing</span>}
+                        ? <span className="text-emerald-600 flex items-center gap-1"><span>✓</span> Found</span>
+                        : <span className="text-red-500 flex items-center gap-1"><span>✗</span> Missing</span>}
                     </td>
                   </tr>
                 ))}
@@ -212,9 +215,9 @@ export default function GapAnalysis() {
           </div>
 
           {result.red_flags.length > 0 && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-              <p className="text-sm font-semibold text-yellow-800 mb-1">⚠ Red flags in this posting</p>
-              {result.red_flags.map((f, i) => <p key={i} className="text-sm text-yellow-700">· {f}</p>)}
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+              <p className="text-sm font-bold text-amber-800 mb-2">⚠ Red flags in this posting</p>
+              {result.red_flags.map((f, i) => <p key={i} className="text-sm text-amber-700 flex gap-2"><span>·</span><span>{f}</span></p>)}
             </div>
           )}
         </div>
