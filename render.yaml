@@ -3,6 +3,7 @@ services:
     name: jdecode-api
     runtime: docker
     plan: free
+    autoDeploy: true
     envVars:
-      - key: ANTHROPIC_API_KEY
-        sync: false
+      - key: PORT
+        value: 8000
