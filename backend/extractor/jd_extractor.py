@@ -1,4 +1,5 @@
 import json
+import time
 from pydantic import BaseModel
 from typing import List, Optional
 
@@ -73,30 +74,40 @@ PROVIDERS = {
 }
 
 
-def _call(provider: str, api_key: str, prompt: str, max_tokens: int = 2048) -> str:
-    if provider == "anthropic":
-        from anthropic import Anthropic
-        client = Anthropic(api_key=api_key)
-        response = client.messages.create(
-            model=PROVIDERS["anthropic"]["model"],
-            max_tokens=max_tokens,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return response.content[0].text.strip()
-    else:
-        from openai import OpenAI
-        cfg = PROVIDERS[provider]
-        kwargs = {"api_key": api_key}
-        if cfg["base_url"]:
-            kwargs["base_url"] = cfg["base_url"]
-        client = OpenAI(**kwargs)
-        response = client.chat.completions.create(
-            model=cfg["model"],
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=max_tokens,
-            temperature=0.1,
-        )
-        return response.choices[0].message.content.strip()
+def _call(provider: str, api_key: str, prompt: str, max_tokens: int = 2048, retries: int = 3) -> str:
+    for attempt in range(retries):
+        try:
+            if provider == "anthropic":
+                from anthropic import Anthropic
+                client = Anthropic(api_key=api_key)
+                response = client.messages.create(
+                    model=PROVIDERS["anthropic"]["model"],
+                    max_tokens=max_tokens,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                return response.content[0].text.strip()
+            else:
+                from openai import OpenAI
+                cfg = PROVIDERS[provider]
+                kwargs = {"api_key": api_key}
+                if cfg["base_url"]:
+                    kwargs["base_url"] = cfg["base_url"]
+                client = OpenAI(**kwargs)
+                response = client.chat.completions.create(
+                    model=cfg["model"],
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=max_tokens,
+                    temperature=0.1,
+                )
+                return response.choices[0].message.content.strip()
+        except Exception as e:
+            msg = str(e)
+            is_rate_limit = "429" in msg or "rate" in msg.lower() or "quota" in msg.lower()
+            if is_rate_limit and attempt < retries - 1:
+                wait = 35 * (attempt + 1)  # 35s, 70s
+                time.sleep(wait)
+                continue
+            raise
 
 
 def _parse_json(raw: str) -> dict:
